@@ -1,0 +1,104 @@
+---
+title: "Predictive Machine Learning"
+author: "Ussia Ngapurue"
+date: "9/23/2019"
+output: html_document
+---
+## Executive Summary
+
+Within this assignment, we will evaluate machine learning models to predict how well exercises are performed, by monitoring wearable devices (such as a Jawbone Up, Nike FuelBand, and Fitbit) with accelorometers. 
+
+## Loading the necessary Packages
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+
+```
+
+## Loading Data
+
+```{r}
+train_in <- read.csv('./pml-training.csv', header=T)
+validation <- read.csv('./pml-testing.csv', header=T)
+```
+## Data Partitioning
+```{r}
+set.seed(127)
+training_sample <- createDataPartition(y=train_in$classe, p=0.7, list=FALSE)
+training <- train_in[training_sample, ]
+testing <- train_in[-training_sample, ]
+```
+## Indentify non zero Data
+It is important to ascertain if there are any NA or missing values wsithin the data, as they will hamper the overall Machine Learning Algorithms. The following codes will remove these values:
+
+```{r}
+all_zero_colnames <- sapply(names(validation), function(x) all(is.na(validation[,x])==TRUE))
+nznames <- names(all_zero_colnames)[all_zero_colnames==FALSE]
+nznames <- nznames[-(1:7)]
+nznames <- nznames[1:(length(nznames)-1)]
+```
+
+## Cross validation
+Cross validation is done for each model with K = 3. 
+```{r}    
+fitControl <- trainControl(method='cv', number = 3)
+```
+## Model building
+This section will test 3 ML models, and then we will evaluate which model performed best with regards to accuracy.
+    
+# Decision trees with CART (rpart)
+# Stochastic gradient boosting trees (gbm)
+# Random forest decision trees (rf)
+
+```{r}
+
+model_cart <- train(classe ~ .,data=training[, c('classe', nznames)],trControl=fitControl, method='rpart')
+save(model_cart, file='./ModelFitCART.RData')
+
+model_gbm <- train(classe ~ .,data=training[, c('classe', nznames)],trControl=fitControl, method='gbm')
+save(model_gbm, file='./ModelFitGBM.RData')
+
+model_rf <- train(classe ~ ., data=training[, c('classe', nznames)],trControl=fitControl, method='rf',ntree=100)
+save(model_rf, file='./ModelFitRF.RData')
+```
+
+## Model Assessment (Out of sample error)
+```{r}
+pred_rpart <- predict(model_cart, newdata=testing)
+CM_rpart <- confusionMatrix(pred_rpart, testing$classe)
+pred_GBM <- predict(model_gbm, newdata=testing)
+CM_GBM <- confusionMatrix(pred_GBM, testing$classe)
+pred_RF <- predict(model_rf, newdata=testing)
+CM_RF <- confusionMatrix(pred_RF, testing$classe)
+AccuracyResults <- data.frame(Model = c('CART', 'GBM', 'RF'),Accuracy = rbind(CM_rpart$overall[1], CM_GBM$overall[1], CM_RF$overall[1]))
+print(AccuracyResults)
+```
+
+From the three models constructed, it appears that the Random Forest Model produced the best results. The Random Forest Model Confusion Matrix is highlighted below:
+```{r}
+CM_RF
+```
+
+## Prediction
+
+The final aim of the project is to use the Random Forest Model to make predictions on the ('pml-testing.csv') provided, where 20 observations are contained.
+
+```{r}
+predValidation <- predict(model_rf, newdata=validation)
+ValidationPredictionResults <- data.frame(
+    problem_id=validation$problem_id,
+    predicted=predValidation
+)
+print(ValidationPredictionResults)
+```
+
+## Conclusion
+
+We have determined that the Random Forest Model with cross validation produces the most accurate model, and is successfully used for prediction on the testing sample data set.
+
+
